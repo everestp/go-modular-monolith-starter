@@ -6,7 +6,7 @@ toolchain go1.26.8
 
 require (
 	github.com/golang-jwt/jwt/v5 v5.2.2
-	github.com/jackc/pgx/v5 v5.7.5
+	github.com/jackc/pgx/v5 v5.11.0
 	github.com/pressly/goose/v3 v3.24.0
 	golang.org/x/crypto v0.42.0
 )
