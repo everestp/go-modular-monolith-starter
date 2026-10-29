@@ -2,55 +2,365 @@ openapi: 3.1.0
 info:
   title: prod-go API
   version: 1.0.0
+  description: Modular monolith starter API for authentication and user-owned notes.
+  license:
+    name: MIT
+    identifier: MIT
 servers:
-  - url: http://localhost:8080
+  - url: https://api.prod-go.invalid
+security:
+  - bearerAuth: []
 paths:
   /healthz:
     get:
-      summary: Health check
+      operationId: health
+      summary: Liveness probe
+      security: []
       responses:
         "200":
-          description: Healthy
+          description: The process is alive.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, const: ok }
+        "429": { $ref: "#/components/responses/Problem" }
   /readyz:
     get:
-      summary: Readiness check
+      operationId: readiness
+      summary: Dependency readiness probe
+      security: []
       responses:
-        "200":
-          description: Ready
+        "200": { description: The database is reachable. }
+        "503": { $ref: "#/components/responses/Problem" }
+        "429": { $ref: "#/components/responses/Problem" }
   /version:
     get:
-      summary: Version metadata
+      operationId: version
+      summary: Build information
+      security: []
       responses:
         "200":
-          description: Application metadata
+          description: Version metadata.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [version, commit, build_time]
+                properties:
+                  version: { type: string }
+                  commit: { type: string }
+                  build_time: { type: string }
+        "429": { $ref: "#/components/responses/Problem" }
+  /metrics:
+    get:
+      operationId: metrics
+      summary: Prometheus metrics
+      security: []
+      responses:
+        "200":
+          description: Prometheus text exposition.
+          content:
+            text/plain:
+              schema: { type: string }
+        "429": { $ref: "#/components/responses/Problem" }
   /api/v1/auth/register:
     post:
-      summary: Register a new user
+      operationId: register
+      summary: Register an account
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Credentials" }
+      responses:
+        "201":
+          description: Account and token pair created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Registration" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
+        "422": { $ref: "#/components/responses/Problem" }
+  /api/v1/auth/login:
+    post:
+      operationId: login
+      summary: Authenticate with email and password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Credentials" }
+      responses:
+        "200":
+          description: Authenticated token pair.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Registration" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
+  /api/v1/auth/refresh:
+    post:
+      operationId: refresh
+      summary: Rotate a refresh token
+      security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required: [refresh_token]
               properties:
-                email:
-                  type: string
-                password:
-                  type: string
-              required: [email, password]
-      responses:
-        "201":
-          description: User created
-  /api/v1/auth/login:
-    post:
-      summary: Login and receive a JWT
+                refresh_token: { type: string, minLength: 40 }
       responses:
         "200":
-          description: Login successful
+          description: Rotated token pair.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Problem" }
+  /api/v1/auth/logout:
+    post:
+      operationId: logout
+      summary: Revoke a refresh-token family
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string, minLength: 40 }
+      responses:
+        "204": { description: Token family revoked. }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Problem" }
   /api/v1/auth/me:
     get:
-      summary: Return the current user
+      operationId: currentUser
+      summary: Get the authenticated user
+      security: [{ bearerAuth: [] }]
       responses:
         "200":
-          description: User profile
-components: {}
+          description: Current user.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+  /api/v1/notes:
+    post:
+      operationId: createNote
+      summary: Create a note for the authenticated user
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NoteInput" }
+      responses:
+        "201":
+          description: Note created.
+          headers:
+            Location: { schema: { type: string } }
+            ETag: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Note" }
+        "401": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
+        "422": { $ref: "#/components/responses/Problem" }
+    get:
+      operationId: listNotes
+      summary: List notes owned by the authenticated user
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - in: query
+          name: cursor
+          schema: { type: string }
+      responses:
+        "200":
+          description: A page of notes.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Note" }
+                  next_cursor: { type: string }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Problem" }
+  /api/v1/notes/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getNote
+      summary: Get an owned note
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Note details.
+          headers:
+            ETag: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Note" }
+        "401": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+    put:
+      operationId: replaceNote
+      summary: Replace an owned note
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: header
+          name: If-Match
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NoteInput" }
+      responses:
+        "200":
+          description: Note replaced.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Note" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+    patch:
+      operationId: patchNote
+      summary: Partially update an owned note
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: header
+          name: If-Match
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                title: { type: string, minLength: 1, maxLength: 200 }
+                content: { type: string, maxLength: 10000 }
+      responses:
+        "200":
+          description: Note updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Note" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+    delete:
+      operationId: deleteNote
+      summary: Soft-delete an owned note
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: header
+          name: If-Match
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: Note deleted. }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Problem:
+      description: RFC 9457 problem details.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+  schemas:
+    Credentials:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, maxLength: 320 }
+        password: { type: string, minLength: 12, maxLength: 128 }
+    User:
+      type: object
+      required: [id, email]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+    Session:
+      type: object
+      required: [access_token, refresh_token, token_type]
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        token_type: { type: string, const: Bearer }
+    Registration:
+      allOf:
+        - { $ref: "#/components/schemas/Session" }
+        - type: object
+          required: [user]
+          properties:
+            user: { $ref: "#/components/schemas/User" }
+    NoteInput:
+      type: object
+      additionalProperties: false
+      required: [title, content]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+        content: { type: string, maxLength: 10000 }
+    Note:
+      type: object
+      required: [id, title, content, version, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        content: { type: string }
+        version: { type: integer, minimum: 1 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    Problem:
+      type: object
+      required: [type, title, status, detail, instance, request_id]
+      properties:
+        type: { type: string, format: uri-reference }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        request_id: { type: string }

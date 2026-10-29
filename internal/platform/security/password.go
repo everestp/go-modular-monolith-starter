@@ -64,25 +64,30 @@ func VerifyPassword(password, encodedHash string, cfg Argon2Config) (bool, error
 	if version != argon2.Version {
 		return false, fmt.Errorf("unsupported argon2 version")
 	}
-	var memory, iterations, keyLength int
+	var memory, iterations int
 	var parallelism int
 	_, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &memory, &iterations, &parallelism)
 	if err != nil {
 		return false, fmt.Errorf("parse params: %w", err)
 	}
-	if memory <= 0 || iterations <= 0 || parallelism <= 0 {
+	if memory < 8 || memory > 1024*1024 || iterations <= 0 || iterations > 20 || parallelism <= 0 || parallelism > 255 {
 		return false, fmt.Errorf("invalid hash parameters")
 	}
-	keyLength = 32
 	decodedSalt, err := base64.RawStdEncoding.DecodeString(parts[4])
 	if err != nil {
 		return false, fmt.Errorf("decode salt: %w", err)
+	}
+	if len(decodedSalt) < 8 || len(decodedSalt) > 64 {
+		return false, fmt.Errorf("invalid salt length")
 	}
 	decodedHash, err := base64.RawStdEncoding.DecodeString(parts[5])
 	if err != nil {
 		return false, fmt.Errorf("decode hash: %w", err)
 	}
+	if len(decodedHash) < 16 || len(decodedHash) > 64 {
+		return false, fmt.Errorf("invalid hash length")
+	}
 	secret := cfg.Pepper + password
-	computed := argon2.IDKey([]byte(secret), decodedSalt, uint32(iterations), uint32(memory), uint8(parallelism), uint32(keyLength))
+	computed := argon2.IDKey([]byte(secret), decodedSalt, uint32(iterations), uint32(memory), uint8(parallelism), uint32(len(decodedHash)))
 	return subtle.ConstantTimeCompare(decodedHash, computed) == 1, nil
 }
