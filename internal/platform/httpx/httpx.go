@@ -1,3 +1,4 @@
+// Package httpx provides reusable HTTP helpers and middleware primitives.
 package httpx
 
 import (

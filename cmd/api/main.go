@@ -1,3 +1,4 @@
+// Package main starts the HTTP API server.
 package main
 
 import (

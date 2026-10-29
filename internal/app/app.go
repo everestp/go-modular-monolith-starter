@@ -1,3 +1,4 @@
+// Package app wires config, logger, database, and HTTP handlers together.
 package app
 
 import (
@@ -10,11 +11,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"prod-go/internal/config"
 	"prod-go/internal/platform/database"
 	"prod-go/internal/platform/logger"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // App wires configuration, infrastructure, and HTTP services.

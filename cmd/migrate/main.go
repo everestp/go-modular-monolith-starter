@@ -1,3 +1,4 @@
+// Package main provides the database migration CLI.
 package main
 
 import (

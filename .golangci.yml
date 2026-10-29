@@ -11,7 +11,7 @@ linters:
     - errorlint
     - exhaustive
     - gocritic
-    - gofumpt
+    - gofmt
     - gosec
     - govet
     - misspell

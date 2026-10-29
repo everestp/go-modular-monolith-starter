@@ -1,3 +1,4 @@
+// Package security contains password and JWT helpers used by the application.
 package security
 
 import (
