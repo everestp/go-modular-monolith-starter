@@ -1,0 +1,41 @@
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    - bodyclose
+    - contextcheck
+    - depguard
+    - errcheck
+    - errorlint
+    - exhaustive
+    - gocritic
+    - gofumpt
+    - gosec
+    - govet
+    - misspell
+    - nilerr
+    - noctx
+    - revive
+    - rowserrcheck
+    - sqlclosecheck
+    - staticcheck
+    - unconvert
+    - unparam
+
+linters-settings:
+  depguard:
+    rules:
+      main:
+        deny:
+          - pkg: "github.com/golang-jwt/jwt/v4"
+            desc: use v5
+          - pkg: "github.com/golang-jwt/jwt"
+            desc: use v5
+  gosec:
+    excludes:
+      - G115
+
+issues:
+  exclude-use-default: false
